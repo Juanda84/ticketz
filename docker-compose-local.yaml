@@ -1,3 +1,5 @@
+version: "3.9"
+
 networks:
   ticketz:
 
@@ -22,14 +24,13 @@ services:
     depends_on:
       - postgres
       - redis
+    # Exponer puerto 3000 backend en host (para NPM/api-ticketz.serx.cloud)
     ports:
-      - ${BACKEND_PORT:-8080}:3000
+      - "3000:3000"
     networks:
       - ticketz
 
   frontend:
-    ports:
-      - ${FRONTEND_PORT:-3000}:80
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
@@ -40,6 +41,9 @@ services:
     restart: always
     depends_on:
       - backend
+    # Exponer puerto 80 frontend en host (para NPM/ticketz.serx.cloud)
+    ports:
+      - "80:80"
     networks:
       - ticketz
 
@@ -49,9 +53,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-ticketz}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-supersecret}
       - POSTGRES_DB=${POSTGRES_DB:-ticketz}
       - POSTGRES_HOST_AUTH_METHOD=trust
-      - TZ=${TZ:-America/Sao_Paulo}
+      - TZ=${TZ:-America/Bogota}
     expose:
       - 5432
     restart: always
@@ -84,3 +89,4 @@ services:
       - postgres
     networks:
       - ticketz
+
