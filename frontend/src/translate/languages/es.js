@@ -414,10 +414,10 @@ const messages = {
         listItems: {
           dashboard: "Tablero",
           connections: "Conexiones",
-          tickets: "Atenciones",
+          tickets: "Mensajes",
           quickMessages: "Respuestas Rápidas",
           contacts: "Contactos",
-          queues: "Filas y Chatbot",
+          queues: "Areas",
           tags: "Etiquetas",
           administration: "Administración",
           service: "Atención",
