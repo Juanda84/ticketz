@@ -43,7 +43,7 @@ services:
       - backend
     # Exponer puerto 80 frontend en host (para NPM/ticketz.serx.cloud)
     ports:
-      - "80:80"
+      - "3001:80"
     networks:
       - ticketz
 
