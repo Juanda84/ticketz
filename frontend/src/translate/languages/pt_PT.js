@@ -583,7 +583,7 @@ const messages = {
             okadd: "Ok",
             cancel: "Cancelar Envios",
             restart: "Reiniciar Envios",
-            close: "Fechar",
+            close: "Cerrar",
             attach: "Anexar Ficheiro",
           },
         },
@@ -988,7 +988,7 @@ const messages = {
         title: "Editar Privacidade do WhatsApp",
         buttons: {
           cancel: "Cancelar",
-          okEdit: "Salvar",
+          okEdit: "Guardar",
         },
         form: {
           menu: {
@@ -1084,3 +1084,4 @@ const messages = {
 };
 
 export { messages };
+
