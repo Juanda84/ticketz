@@ -34,6 +34,8 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
+    environment:
+      - CI=false
     env_file:
       - .env-frontend-local
     volumes:
