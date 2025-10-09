@@ -36,6 +36,7 @@ services:
       dockerfile: ./Dockerfile
     environment:
       - CI=false
+      - NODE_OPTIONS=--max-old-space-size=2048
     env_file:
       - .env-frontend-local
     volumes:
