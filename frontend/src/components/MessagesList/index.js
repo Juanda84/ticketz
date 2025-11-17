@@ -18,6 +18,7 @@ import {
 import {
   AccessTime,
   Block,
+  Warning,
   Done,
   DoneAll,
   ExpandMore,
@@ -44,6 +45,7 @@ import { i18n } from "../../translate/i18n";
 import vCard from "vcard-parser";
 import { generateColor } from "../../helpers/colorGenerator";
 import { getInitials } from "../../helpers/getInitials";
+import { downloadFile } from "../../helpers/downloadFile";
 import { Mutex } from "async-mutex";
 
 const loadPageMutex = new Mutex();
@@ -54,6 +56,11 @@ const useStyles = makeStyles((theme) => ({
       color: theme.palette.primary.main,
       fontWeight: "bold",
       textDecoration: "none",
+    },
+    "& span.ticketzMention": {
+      color: theme.palette.primary.main,
+      fontWeight: "bold",
+      // cursor: "pointer",
     },
     marginBottom: 5,
   },
@@ -92,7 +99,7 @@ const useStyles = makeStyles((theme) => ({
     marginRight: 20,
     marginTop: 2,
     minWidth: 100,
-    maxWidth: 600,
+    maxWidth: "min(600px, 100%)",
     height: "auto",
     display: "block",
     position: "relative",
@@ -154,7 +161,7 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: 20,
     marginTop: 2,
     minWidth: 100,
-    maxWidth: 600,
+    maxWidth: "min(600px, 100%)",
     height: "auto",
     display: "block",
     position: "relative",
@@ -339,13 +346,6 @@ const useStyles = makeStyles((theme) => ({
     marginRight: 4,
   },
 
-  ackDoneAllIcon: {
-    color: green[500],
-    fontSize: 18,
-    verticalAlign: "middle",
-    marginLeft: 4,
-  },
-
   ackDoneReadIcon: {
     color: blue[500],
     fontSize: 18,
@@ -497,6 +497,7 @@ const useStyles = makeStyles((theme) => ({
   },
   previewThumbnail: {
     width: "383px",
+    maxWidth: "100%",
   },
   audioBottom: {
     marginBottom: "12px",
@@ -819,8 +820,7 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, allowReplyButtons
               endIcon={<GetApp />}
               color="primary"
               variant="outlined"
-              target="_blank"
-              href={message.mediaUrl}
+              onClick={() => downloadFile(message.mediaUrl)}
             >
              { document?.fileName || message.body}
             </Button>
@@ -843,16 +843,16 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, allowReplyButtons
 
   const renderMessageAck = (message) => {
     if (message.ack === 0) {
-      return <AccessTime fontSize="small" className={classes.ackIcons} />;
+      return <Warning fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 1) {
-      return <Done fontSize="small" className={classes.ackIcons} />;
+      return <AccessTime fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 2) {
-      return <DoneAll fontSize="small" className={classes.ackIcons} />;
+      return <Done fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 3) {
-      return <DoneAll fontSize="small" className={classes.ackDoneAllIcon} />;
+      return <DoneAll fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 4) {
       return <DoneAll fontSize="small" className={classes.ackDoneReadIcon} />;
@@ -1077,6 +1077,17 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, allowReplyButtons
     );
   }
   
+  const renderUrlButton = ({ displayText, url }) =>
+    <Button
+      className={classes.messageButton}
+      color="primary"
+      startIcon={displayText === 'Facebook' ? <Facebook /> : displayText === 'Instagram' ? <Instagram /> : <Launch />}
+    >
+      <a href={url} target="_blank" style={{ textDecoration: 'none', color: 'inherit' }}>
+        {displayText}
+      </a>
+    </Button>
+  
   const renderButtons = (message) => {
     const objects = 
       message?.buttonsMessage?.buttons ||
@@ -1086,26 +1097,24 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, allowReplyButtons
 
     if (!objects) return (<></>);
 
-    return objects.map((item, index) => {
+    return objects.map((item) => {
       if (item.urlButton) {
-        return (
-          <Button
-            className={classes.messageButton}
-            key={index}
-            color="primary"
-            startIcon={item.urlButton.displayText === 'Facebook' ? <Facebook /> : item.urlButton.displayText === 'Instagram' ? <Instagram /> : <Launch />}
-          >
-            <a href={item.urlButton.url} target="_blank" style={{ textDecoration: 'none', color: 'inherit' }}>
-              {item.urlButton.displayText}
-            </a>
-          </Button>
-        );
+        return renderUrlButton({
+          displayText: item.urlButton.displayText,
+          url: item.urlButton.url
+        });
       } else if (item.quickReplyButton) {
         return renderReplyButton(item.quickReplyButton.displayText);
       } else if (item.type === "RESPONSE" && item.buttonText) {
         return renderReplyButton(item.buttonText.displayText);
       } else if (item.buttonParamsJson) {
         const params = JSON.parse(item.buttonParamsJson);
+        if (params?.url && params.display_text) {
+          return renderUrlButton({
+            displayText: params.display_text,
+            url: params.url
+          });
+        }
         if (params?.display_text) {
           return renderReplyButton(params.display_text);
         }

@@ -68,10 +68,17 @@ import { verifyContact } from "./verifyContact";
 import GetTicketWbot from "../../helpers/GetTicketWbot";
 import saveMediaToFile from "../../helpers/saveMediaFile";
 import { _t } from "../TranslationServices/i18nService";
+import WhatsappLidMap from "../../models/WhatsappLidMap";
 
 export interface ImessageUpsert {
   messages: proto.IWebMessageInfo[];
   type: MessageUpsertType;
+}
+
+export interface MentionPayload {
+  contactId?: number;
+  name?: string;
+  number?: string;
 }
 
 interface IMe {
@@ -132,7 +139,43 @@ export const getBodyFromTemplateMessage = (
   );
 };
 
-export const getBodyMessage = (msg: proto.IMessage): string | null => {
+const processMention = async (body: string, mention: string) => {
+  const payload: MentionPayload = {};
+
+  let contact: Contact;
+  if (mention.endsWith("@lid")) {
+    const lidMap = await WhatsappLidMap.findOne({
+      where: { lid: mention },
+      include: [Contact]
+    });
+    contact = lidMap?.contact;
+  }
+
+  if (!contact) {
+    contact = await Contact.findOne({
+      where: {
+        number: {
+          [Op.or]: [mention, mention.split("@")[0]]
+        }
+      }
+    });
+  }
+
+  if (contact) {
+    payload.contactId = contact.id;
+    payload.name = contact.name;
+    payload.number = contact.number;
+  } else {
+    // eslint-disable-next-line prefer-destructuring
+    payload.number = mention.split("@")[0];
+  }
+
+  const b64payload = Buffer.from(JSON.stringify(payload)).toString("base64");
+  body = body.replace(`@${mention.split("@")[0]}`, `@[${b64payload}]`);
+  return body;
+};
+
+export const getBodyMessage = async (msg: proto.IMessage): Promise<string> => {
   try {
     if (!msg) {
       return "";
@@ -199,6 +242,13 @@ export const getBodyMessage = (msg: proto.IMessage): string | null => {
     if (typeof body !== "string") {
       body = "unsupported body content";
     }
+
+    // eslint-disable-next-line no-restricted-syntax
+    for (const mention of (msg[type] as any)?.contextInfo?.mentionedJid ?? []) {
+      // eslint-disable-next-line no-await-in-loop
+      body = await processMention(body, mention);
+    }
+
     return body;
   } catch (error) {
     logger.error({ error, msg }, `getBodyMessage: error: ${error?.message}`);
@@ -261,6 +311,7 @@ const getContactMessage = async (msg: WAMessage, wbot: Session) => {
     : {
         id: msg.key.remoteJid,
         lid: msg?.key?.sender_lid,
+        jid: msg?.key?.sender_pn,
         name: msg.key.fromMe ? rawNumber : msg.pushName
       };
 };
@@ -505,7 +556,7 @@ const storeQuotedMessage = async (
     wbot = await GetTicketWbot(ticket);
   }
 
-  const body = getBodyMessage(quotedMsg) || "";
+  const body = (await getBodyMessage(quotedMsg)) || "";
   const fromMe = !!wbot.myJid && participant === wbot.myJid;
 
   const messageMedia = getMessageMedia(quotedMsg);
@@ -657,7 +708,7 @@ export const verifyMediaMessage = async (
   const mediaType = mimetype.split("/")[0];
   const filename = mediaInfo?.filename || media?.filename || "file.bin";
 
-  let body = getBodyMessage(msg?.message);
+  let body = await getBodyMessage(msg?.message);
 
   if (
     mediaType === "audio" &&
@@ -762,7 +813,7 @@ export const verifyMessage = async (
 ) => {
   const io = getIO();
   const quotedMsg = await verifyQuotedMessage(msg, ticket);
-  const body = getBodyMessage(msg?.message);
+  const body = await getBodyMessage(msg?.message);
 
   const messageData = {
     id: msg.key.id,
@@ -958,6 +1009,7 @@ const isValidMsg = (msg: proto.IWebMessageInfo): boolean => {
       msgType === "stickerMessage" ||
       msgType === "buttonsResponseMessage" ||
       msgType === "buttonsMessage" ||
+      msgType === "templateButtonReplyMessage" ||
       msgType === "messageContextInfo" ||
       msgType === "locationMessage" ||
       msgType === "liveLocationMessage" ||
@@ -1202,7 +1254,7 @@ const verifyQueue = async (
       "disabled"
     )) === "enabled";
 
-  const selectedOption = msg ? getBodyMessage(msg?.message) : null;
+  const selectedOption = msg ? await getBodyMessage(msg?.message) : null;
   const choosenQueue = selectedOption ? queues[+selectedOption - 1] : null;
 
   const botText = async () => {
@@ -1298,7 +1350,7 @@ const handleChartbot = async (
     order: [["options", "option", "ASC"]]
   });
 
-  const messageBody = getBodyMessage(msg?.message);
+  const messageBody = await getBodyMessage(msg?.message);
 
   if (messageBody === "#") {
     // voltar para o menu inicial
@@ -1498,7 +1550,7 @@ const handleMessage = async (
       }
     }
 
-    const bodyMessage = getBodyMessage(msg?.message);
+    const bodyMessage = await getBodyMessage(msg?.message);
     const msgType = getTypeMessage(msg);
 
     const unpackedMessage = getUnpackedMessage(msg);
@@ -1741,7 +1793,11 @@ const handleMessage = async (
       });
     }
 
-    if (isGroup || contact.disableBot) {
+    if (isGroup || contact.disableBot || msg.key.fromMe) {
+      if (ticket.chatbot) {
+        await updateTicket(ticket, { chatbot: false });
+        await ticket.reload();
+      }
       if (justCreated && newMessage) {
         websocketCreateMessage(newMessage);
       }
@@ -1749,7 +1805,7 @@ const handleMessage = async (
     }
 
     try {
-      if (!msg.key.fromMe && scheduleType) {
+      if (scheduleType) {
         const isOpenOnline =
           ticket.status === "open" && ticket.user.socketSessions.length > 0;
 
@@ -1826,7 +1882,6 @@ const handleMessage = async (
     if (
       !ticket.queue &&
       !isGroup &&
-      !msg.key.fromMe &&
       !ticket.userId &&
       whatsapp.queues.length >= 1
     ) {
@@ -1846,8 +1901,7 @@ const handleMessage = async (
       justCreated &&
       !whatsapp?.queues?.length &&
       !ticket.userId &&
-      !isGroup &&
-      !msg.key.fromMe
+      !isGroup
     ) {
       const message = await Message.findOne({
         where: {
@@ -1876,7 +1930,7 @@ const handleMessage = async (
       }
     }
 
-    if (ticket.queue && ticket.chatbot && !msg.key.fromMe) {
+    if (ticket.queue && ticket.chatbot) {
       await handleChartbot(ticket, msg, wbot, dontReadTheFirstQuestion);
     }
   } catch (err) {
@@ -1886,19 +1940,27 @@ const handleMessage = async (
   }
 };
 
-const handleMsgAck = async (msg: WAMessage, ack: number) => {
+const handleMsgAck = async (id: string, whatsappId: number, ack: number) => {
   if (!ack) return;
 
   const io = getIO();
 
   try {
-    const messageToUpdate = await Message.findByPk(msg.key.id, {
+    const messageToUpdate = await Message.findOne({
+      where: {
+        id
+      },
       include: [
         "contact",
         {
           model: Message,
           as: "quotedMsg",
           include: ["contact"]
+        },
+        {
+          model: Ticket,
+          where: { whatsappId },
+          required: true
         }
       ]
     });
@@ -2008,6 +2070,19 @@ const wbotMessageListener = async (
       });
     });
 
+    wbot.ev.on("message-receipt.update", async (messageReceipt: any) => {
+      logger.trace(
+        { messageReceipt },
+        "wbotMessageListener: message-receipt.update"
+      );
+      if (messageReceipt.length === 0) return;
+      messageReceipt.forEach(async (receipt: any) => {
+        await ackMutex.runExclusive(async () => {
+          handleMsgAck(receipt.key.id, wbot.id, 2);
+        });
+      });
+    });
+
     wbot.ev.on("messages.update", (messageUpdate: WAMessageUpdate[]) => {
       logger.trace({ messageUpdate }, "wbotMessageListener: messages.update");
       if (messageUpdate.length === 0) return;
@@ -2015,7 +2090,7 @@ const wbotMessageListener = async (
         (wbot as WASocket)!.readMessages([message.key]);
 
         await ackMutex.runExclusive(async () => {
-          handleMsgAck(message, message.update.status);
+          handleMsgAck(message.key.id, wbot.id, message.update.status);
         });
       });
     });

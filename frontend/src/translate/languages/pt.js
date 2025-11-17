@@ -10,6 +10,7 @@ const messages = {
         save: "Salvar",
         confirm: "Confirmar",
         close: "Fechar",
+        closed: "Fechado",
         error: "Erro",
         success: "Sucesso",
         actions: "Ações",
@@ -23,6 +24,7 @@ const messages = {
         connection: "Conexão",
         queue: "Fila",
         contact: "Contato",
+        messages: "Mensagens",
         whatsappNumber: "Número do Whatsapp",
         dueDate: "Data de vencimento",
         copy: "Copiar",
@@ -30,11 +32,13 @@ const messages = {
         proceed: "Prosseguir",
         enabled: "Ativado",
         disabled: "Desativado",
+        undefined: "Indefinido",
         yes: "Sim",
         no: "Não",
         noqueue: "Sem fila",
         rating: "Avaliação",
         transferTo: "Transferir para",
+        key: "Chave",
         value: "Valor",
       },
       signup: {
@@ -680,6 +684,11 @@ const messages = {
       },
       campaignsConfig: {
         title: "Configurações de Campanhas",
+        intervals: "Intervalos",
+        messageInterval: "Intervalo entre mensagens (segundos)",
+        longerIntervalAfter: "Intervalo maior após (mensagens)",
+        longerInterval: "Intervalo maior (segundos)",
+        addVariable: "Adicionar variável",
       },
       queues: {
         title: "Filas & Chatbot",
@@ -1090,6 +1099,11 @@ const messages = {
           calladd: "Para atualizar a privacidade de Adicionar a Ligações",
           disappearing: "Para atualizar o Modo de Desaparecimento Padrão",
         },
+      },
+      phoneNumberInput: {
+        country: "País",
+        phoneNumber: "Telefone",
+        localNumber: "Telefone",
       },
       frontendErrors: {
         ERR_CONFIG_ERROR: "Erro de configuração. Por favor, contate o suporte.",
